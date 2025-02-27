@@ -550,7 +550,13 @@ class nnUNetPredictor(object):
     @torch.inference_mode()
     def _internal_maybe_mirror_and_predict(self, x: torch.Tensor) -> torch.Tensor:
         mirror_axes = self.allowed_mirroring_axes if self.use_mirroring else None
-        prediction = self.network(x)
+
+        if self.configuration_manager.network_arch_class_name == 'dynamic_network_architectures.architectures.unet.PlainConvUNet':
+            prediction, encoder_intermediates, decoder_intermediates = self.network(x)
+        else:
+            prediction = self.network(x)
+
+        # prediction = self.network(x)
 
         if mirror_axes is not None:
             # check for invalid numbers in mirror_axes
@@ -562,7 +568,14 @@ class nnUNetPredictor(object):
                 c for i in range(len(mirror_axes)) for c in itertools.combinations(mirror_axes, i + 1)
             ]
             for axes in axes_combinations:
-                prediction += torch.flip(self.network(torch.flip(x, axes)), axes)
+                if self.configuration_manager.network_arch_class_name == 'dynamic_network_architectures.architectures.unet.PlainConvUNet':
+                    p, encoder_intermediates, decoder_intermediates = self.network(torch.flip(x, axes))
+                    p = torch.flip(p, axes)
+                    prediction += p
+                else:
+                    prediction += torch.flip(self.network(torch.flip(x, axes)), axes)
+
+                # prediction += torch.flip(self.network(torch.flip(x, axes)), axes)
             prediction /= (len(axes_combinations) + 1)
         return prediction
 
