@@ -1,0 +1,3 @@
+git subtree push --prefix=dynamic_architecture git@github.com:tonyyunyang/dynamic-network-architectures.git main
+
+git subtree push --prefix=nnunetv2 git@github.com:tonyyunyang/nnUNet.git main
