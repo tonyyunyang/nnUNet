@@ -43,6 +43,7 @@ from torch.cuda import device_count
 from torch import GradScaler
 from torch.nn.parallel import DistributedDataParallel as DDP
 
+from dynamic_network_architectures.architectures.unet import PlainConvUNet
 from nnunetv2.configuration import ANISO_THRESHOLD, default_num_processes
 from nnunetv2.evaluation.evaluate_predictions import compute_metrics_on_folder
 from nnunetv2.inference.export_prediction import export_prediction_from_logits, resample_and_save
@@ -214,6 +215,7 @@ class nnUNetTrainer(object):
                 self.label_manager.num_segmentation_heads,
                 self.enable_deep_supervision
             ).to(self.device)
+
             # compile network for free speedup
             if self._do_i_compile():
                 self.print_to_log_file('Using torch.compile...')
@@ -986,7 +988,10 @@ class nnUNetTrainer(object):
         # If the device_type is 'mps' then it will complain that mps is not implemented, even if enabled=False is set. Whyyyyyyy. (this is why we don't make use of enabled=False)
         # So autocast will only be active if we have a cuda device.
         with autocast(self.device.type, enabled=True) if self.device.type == 'cuda' else dummy_context():
-            output = self.network(data)
+            if self.configuration_manager.network_arch_class_name == 'dynamic_network_architectures.architectures.unet.PlainConvUNet':
+                output, encoder_intermediates, decoder_intermediates = self.network(data)
+            else:
+                output = self.network(data)
             # del data
             l = self.loss(output, target)
 
@@ -1032,7 +1037,10 @@ class nnUNetTrainer(object):
         # If the device_type is 'mps' then it will complain that mps is not implemented, even if enabled=False is set. Whyyyyyyy. (this is why we don't make use of enabled=False)
         # So autocast will only be active if we have a cuda device.
         with autocast(self.device.type, enabled=True) if self.device.type == 'cuda' else dummy_context():
-            output = self.network(data)
+            if self.configuration_manager.network_arch_class_name == 'dynamic_network_architectures.architectures.unet.PlainConvUNet':
+                output, encoder_intermediates, decoder_intermediates = self.network(data)
+            else:
+                output = self.network(data)
             del data
             l = self.loss(output, target)
 
