@@ -97,32 +97,61 @@ class UNetDecoder(nn.Module):
         self.transpconvs = nn.ModuleList(transpconvs)
         self.seg_layers = nn.ModuleList(seg_layers)
 
-    def forward(self, skips):
+    def forward(self, skips, return_intermediates:bool = False):
         """
         we expect to get the skips in the order they were computed, so the bottleneck should be the last entry
         :param skips:
+        :param return_intermediates:
         :return:
         """
         lres_input = skips[-1]
         seg_outputs = []
-        for s in range(len(self.stages)):
-            x = self.transpconvs[s](lres_input)
-            x = torch.cat((x, skips[-(s+2)]), 1)
-            x = self.stages[s](x)
-            if self.deep_supervision:
-                seg_outputs.append(self.seg_layers[s](x))
-            elif s == (len(self.stages) - 1):
-                seg_outputs.append(self.seg_layers[-1](x))
-            lres_input = x
+        intermediates = {}
 
+        for s in range(len(self.stages)):
+            stage_intermediates = {}
+            x = self.transpconvs[s](lres_input)
+            stage_intermediates[f'transpconv_{s}'] = x
+            x = torch.cat((x, skips[-(s + 2)]), 1)
+            x, convs_intermediates = self.stages[s](x, return_intermediates=return_intermediates)
+            stage_intermediates[f'conv_block_{s}'] = convs_intermediates
+            if self.deep_supervision:
+                seg_out = self.seg_layers[s](x)
+                seg_outputs.append(seg_out)
+                stage_intermediates[f'seg_layer_{s}'] = seg_out
+            elif s == (len(self.stages) - 1):
+                seg_out = self.seg_layers[-1](x)
+                seg_outputs.append(seg_out)
+                stage_intermediates[f'final_seg_layer_{s}'] = seg_out
+            lres_input = x
+            intermediates[f'decoder_stage_{s}'] = stage_intermediates
         # invert seg outputs so that the largest segmentation prediction is returned first
         seg_outputs = seg_outputs[::-1]
-
         if not self.deep_supervision:
             r = seg_outputs[0]
         else:
             r = seg_outputs
-        return r
+        return (r, intermediates) if return_intermediates else (r, None)
+
+
+        # for s in range(len(self.stages)):
+        #     x = self.transpconvs[s](lres_input)
+        #     x = torch.cat((x, skips[-(s+2)]), 1)
+        #     x = self.stages[s](x)
+        #     if self.deep_supervision:
+        #         seg_outputs.append(self.seg_layers[s](x))
+        #     elif s == (len(self.stages) - 1):
+        #         seg_outputs.append(self.seg_layers[-1](x))
+        #     lres_input = x
+        #
+        # # invert seg outputs so that the largest segmentation prediction is returned first
+        # seg_outputs = seg_outputs[::-1]
+        #
+        # if not self.deep_supervision:
+        #     r = seg_outputs[0]
+        # else:
+        #     r = seg_outputs
+        # return r
 
     def compute_conv_feature_map_size(self, input_size):
         """

@@ -25,6 +25,7 @@ class ConvDropoutNormReLU(nn.Module):
                  nonlin_kwargs: dict = None,
                  nonlin_first: bool = False
                  ):
+
         super(ConvDropoutNormReLU, self).__init__()
         self.input_channels = input_channels
         self.output_channels = output_channels
@@ -38,6 +39,7 @@ class ConvDropoutNormReLU(nn.Module):
             nonlin_kwargs = {}
 
         ops = []
+        ops_names = []
 
         self.conv = conv_op(
             input_channels,
@@ -49,26 +51,39 @@ class ConvDropoutNormReLU(nn.Module):
             bias=conv_bias,
         )
         ops.append(self.conv)
+        ops_names.append('conv')
+
 
         if dropout_op is not None:
             self.dropout = dropout_op(**dropout_op_kwargs)
             ops.append(self.dropout)
+            ops_names.append('dropout')
 
         if norm_op is not None:
             self.norm = norm_op(output_channels, **norm_op_kwargs)
             ops.append(self.norm)
+            ops_names.append('norm')
 
         if nonlin is not None:
             self.nonlin = nonlin(**nonlin_kwargs)
             ops.append(self.nonlin)
+            ops_names.append('nonlin')
 
         if nonlin_first and (norm_op is not None and nonlin is not None):
             ops[-1], ops[-2] = ops[-2], ops[-1]
+            ops_names[-1], ops_names[-2] = ops_names[-2], ops_names[-1]
 
-        self.all_modules = nn.Sequential(*ops)
+        # self.all_modules = nn.Sequential(*ops)
+        self.all_modules = nn.ModuleList(ops)
+        self.all_modules_names = ops_names
 
-    def forward(self, x):
-        return self.all_modules(x)
+    def forward(self, x, return_intermediates: bool = False):
+        intermediates = {}
+        for module, name in zip(self.all_modules, self.all_modules_names):
+            x = module(x)
+            intermediates[name] = x
+        return (x, intermediates) if return_intermediates else (x, None)
+        # return self.all_modules(x)
 
     def compute_conv_feature_map_size(self, input_size):
         assert len(input_size) == len(self.stride), "just give the image size without color/feature channels or " \
@@ -116,7 +131,7 @@ class StackedConvBlocks(nn.Module):
         if not isinstance(output_channels, (tuple, list)):
             output_channels = [output_channels] * num_convs
 
-        self.convs = nn.Sequential(
+        self.convs = nn.ModuleList([
             ConvDropoutNormReLU(
                 conv_op, input_channels, output_channels[0], kernel_size, initial_stride, conv_bias, norm_op,
                 norm_op_kwargs, dropout_op, dropout_op_kwargs, nonlin, nonlin_kwargs, nonlin_first
@@ -128,13 +143,33 @@ class StackedConvBlocks(nn.Module):
                 )
                 for i in range(1, num_convs)
             ]
-        )
+        ])
+
+        # self.convs = nn.Sequential(
+        #     ConvDropoutNormReLU(
+        #         conv_op, input_channels, output_channels[0], kernel_size, initial_stride, conv_bias, norm_op,
+        #         norm_op_kwargs, dropout_op, dropout_op_kwargs, nonlin, nonlin_kwargs, nonlin_first
+        #     ),
+        #     *[
+        #         ConvDropoutNormReLU(
+        #             conv_op, output_channels[i - 1], output_channels[i], kernel_size, 1, conv_bias, norm_op,
+        #             norm_op_kwargs, dropout_op, dropout_op_kwargs, nonlin, nonlin_kwargs, nonlin_first
+        #         )
+        #         for i in range(1, num_convs)
+        #     ]
+        # )
 
         self.output_channels = output_channels[-1]
         self.initial_stride = maybe_convert_scalar_to_list(conv_op, initial_stride)
 
-    def forward(self, x):
-        return self.convs(x)
+    def forward(self, x, return_intermediates: bool = False):
+        intermediates = {}
+        for i, conv in enumerate(self.convs):
+            x, conv_intermediates = conv(x, return_intermediates=return_intermediates)
+            intermediates[f'conv_{i}'] = conv_intermediates
+        return (x, intermediates) if return_intermediates else (x, None)
+
+        # return self.convs(x)
 
     def compute_conv_feature_map_size(self, input_size):
         assert len(input_size) == len(self.initial_stride), "just give the image size without color/feature channels or " \

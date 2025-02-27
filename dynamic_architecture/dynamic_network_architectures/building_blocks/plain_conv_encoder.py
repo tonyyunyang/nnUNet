@@ -61,10 +61,12 @@ class PlainConvEncoder(nn.Module):
                 n_conv_per_stage[s], conv_op, input_channels, features_per_stage[s], kernel_sizes[s], conv_stride,
                 conv_bias, norm_op, norm_op_kwargs, dropout_op, dropout_op_kwargs, nonlin, nonlin_kwargs, nonlin_first
             ))
-            stages.append(nn.Sequential(*stage_modules))
+            # stages.append(nn.Sequential(*stage_modules))
+            stages.append(nn.ModuleList(stage_modules))
             input_channels = features_per_stage[s]
 
-        self.stages = nn.Sequential(*stages)
+        # self.stages = nn.Sequential(*stages)
+        self.stages = nn.ModuleList(stages)
         self.output_channels = features_per_stage
         self.strides = [maybe_convert_scalar_to_list(conv_op, i) for i in strides]
         self.return_skips = return_skips
@@ -80,20 +82,37 @@ class PlainConvEncoder(nn.Module):
         self.conv_bias = conv_bias
         self.kernel_sizes = kernel_sizes
 
-    def forward(self, x):
+    def forward(self, x, return_intermediates: bool = False):
         ret = []
-        for s in self.stages:
-            x = s(x)
+        intermediates = {}
+
+        for i, stage in enumerate(self.stages):
+            stage_intermediates = {}
+            for j, module in enumerate(stage):
+                if isinstance(module, StackedConvBlocks):
+                    x, conv_intermediates = module(x, return_intermediates=return_intermediates)
+                    stage_intermediates[f'conv_block_{j}'] = conv_intermediates
+                else:  # This is an avg/max pooling layer
+                    x = module(x)
+                    stage_intermediates[f'pool_{j}'] = x
             ret.append(x)
-        if self.return_skips:
-            return ret
-        else:
-            return ret[-1]
+            intermediates[f'encoder_stage_{i}'] = stage_intermediates
+        return (ret if self.return_skips else ret[-1], intermediates) if return_intermediates \
+            else (ret if self.return_skips else ret[-1], None)
+
+        # for s in self.stages:
+        #     x = s(x)
+        #     ret.append(x)
+        # if self.return_skips:
+        #     return ret
+        # else:
+        #     return ret[-1]
 
     def compute_conv_feature_map_size(self, input_size):
         output = np.int64(0)
         for s in range(len(self.stages)):
-            if isinstance(self.stages[s], nn.Sequential):
+            # if isinstance(self.stages[s], nn.Sequential):
+            if isinstance(self.stages[s], nn.ModuleList):
                 for sq in self.stages[s]:
                     if hasattr(sq, 'compute_conv_feature_map_size'):
                         output += self.stages[s][-1].compute_conv_feature_map_size(input_size)
