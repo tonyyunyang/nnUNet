@@ -16,13 +16,15 @@ def make_out_dirs(dataset_id: int, task_name="ACDC"):
     out_train_dir = out_dir / "imagesTr"
     out_labels_dir = out_dir / "labelsTr"
     out_test_dir = out_dir / "imagesTs"
+    out_test_labels_dir = out_dir / "labelsTs"  # Added this line
 
     os.makedirs(out_dir, exist_ok=True)
     os.makedirs(out_train_dir, exist_ok=True)
     os.makedirs(out_labels_dir, exist_ok=True)
     os.makedirs(out_test_dir, exist_ok=True)
+    os.makedirs(out_test_labels_dir, exist_ok=True)  # Added this line
 
-    return out_dir, out_train_dir, out_labels_dir, out_test_dir
+    return out_dir, out_train_dir, out_labels_dir, out_test_dir, out_test_labels_dir
 
 
 def create_ACDC_split(labelsTr_folder: str, seed: int = 1234) -> List[dict[str, List]]:
@@ -41,7 +43,33 @@ def create_ACDC_split(labelsTr_folder: str, seed: int = 1234) -> List[dict[str, 
     return splits
 
 
-def copy_files(src_data_folder: Path, train_dir: Path, labels_dir: Path, test_dir: Path):
+# def copy_files(src_data_folder: Path, train_dir: Path, labels_dir: Path, test_dir: Path):
+#     """Copy files from the ACDC dataset to the nnUNet dataset folder. Returns the number of training cases."""
+#     patients_train = sorted([f for f in (src_data_folder / "training").iterdir() if f.is_dir()])
+#     patients_test = sorted([f for f in (src_data_folder / "testing").iterdir() if f.is_dir()])
+#
+#     num_training_cases = 0
+#     # Copy training files and corresponding labels.
+#     for patient_dir in patients_train:
+#         for file in patient_dir.iterdir():
+#             if file.suffix == ".gz" and "_gt" not in file.name and "_4d" not in file.name:
+#                 # The stem is 'patient.nii', and the suffix is '.gz'.
+#                 # We split the stem and append _0000 to the patient part.
+#                 shutil.copy(file, train_dir / f"{file.stem.split('.')[0]}_0000.nii.gz")
+#                 num_training_cases += 1
+#             elif file.suffix == ".gz" and "_gt" in file.name:
+#                 shutil.copy(file, labels_dir / file.name.replace("_gt", ""))
+#
+#     # Copy test files.
+#     for patient_dir in patients_test:
+#         for file in patient_dir.iterdir():
+#             if file.suffix == ".gz" and "_gt" not in file.name and "_4d" not in file.name:
+#                 shutil.copy(file, test_dir / f"{file.stem.split('.')[0]}_0000.nii.gz")
+#
+#     return num_training_cases
+
+
+def copy_files(src_data_folder: Path, train_dir: Path, labels_dir: Path, test_dir: Path, test_labels_dir: Path):
     """Copy files from the ACDC dataset to the nnUNet dataset folder. Returns the number of training cases."""
     patients_train = sorted([f for f in (src_data_folder / "training").iterdir() if f.is_dir()])
     patients_test = sorted([f for f in (src_data_folder / "testing").iterdir() if f.is_dir()])
@@ -58,18 +86,21 @@ def copy_files(src_data_folder: Path, train_dir: Path, labels_dir: Path, test_di
             elif file.suffix == ".gz" and "_gt" in file.name:
                 shutil.copy(file, labels_dir / file.name.replace("_gt", ""))
 
-    # Copy test files.
+    # Copy test files and their ground truth labels.
     for patient_dir in patients_test:
         for file in patient_dir.iterdir():
             if file.suffix == ".gz" and "_gt" not in file.name and "_4d" not in file.name:
                 shutil.copy(file, test_dir / f"{file.stem.split('.')[0]}_0000.nii.gz")
+            elif file.suffix == ".gz" and "_gt" in file.name:
+                # Copy test ground truth labels
+                shutil.copy(file, test_labels_dir / file.name.replace("_gt", ""))
 
     return num_training_cases
 
 
 def convert_acdc(src_data_folder: str, dataset_id=27):
-    out_dir, train_dir, labels_dir, test_dir = make_out_dirs(dataset_id=dataset_id)
-    num_training_cases = copy_files(Path(src_data_folder), train_dir, labels_dir, test_dir)
+    out_dir, train_dir, labels_dir, test_dir, test_labels_dir = make_out_dirs(dataset_id=dataset_id)
+    num_training_cases = copy_files(Path(src_data_folder), train_dir, labels_dir, test_dir, test_labels_dir)
 
     generate_dataset_json(
         str(out_dir),

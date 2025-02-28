@@ -80,6 +80,7 @@ def main():
 
     yaml_file = sys.argv[1]
     config = read_config(yaml_file)
+    config = config['train']
 
     # Check for required parameters
     if 'dataset_name_or_id' not in config:

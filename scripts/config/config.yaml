@@ -1,0 +1,51 @@
+# Params for training
+train:
+  dataset_name_or_id: 27  # Dataset name or ID to train with
+  configuration: 2d # 2d, 3d_fullres, 3d_lowres, 3d_cascade_fullres
+  fold: [0, 1, 2]  # Fold(s) of the 5-fold cross-validation (integers between 0 and 4)
+  # Optional parameters with default values
+  tr: FlexibleTrainerV1  # Custom trainer (default: nnUNetTrainer)
+  p: nnUNetPlans  # Custom plans identifier (default: nnUNetPlans)
+  pretrained_weights: null  # Path to nnU-Net checkpoint file for pretrained model
+  num_gpus: 1  # Number of GPUs to use for training
+  device: cuda  # Device to run on (cuda, cpu, mps)
+  # Boolean flags
+  npz: false  # Save softmax predictions as npz files
+  c: false  # Continue training from latest checkpoint
+  val: false  # Only run validation (requires training to have finished)
+  val_best: false  # Use checkpoint_best for validation
+
+
+# Params for prediction
+predict:
+  # OPTION 1: Predict using direct path to the model folder
+  # OPTION 2: Alternatively, use dataset ID and configuration from 'train'
+#  model_folder: nnUNet_results/Dataset027_ACDC/FlexibleTrainerV1__nnUNetPlans__2d  # Path to the trained model folder
+
+  # Required parameters
+  input_folder: nnUNet_raw/Dataset027_ACDC/imagesTs  # Input folder with test images
+  output_folder: nnUNet_results/Dataset027_ACDC/prediction  # Output folder to save predictions
+
+  # Fold selection
+#  fold: [0, 1, 2]  # Use the same folds you trained on
+
+  # Optional parameters
+  step_size: 0.5  # Step size for sliding window prediction
+  checkpoint_name: checkpoint_best.pth  # Name of the checkpoint to use
+  device: cuda  # Device to run on (cuda, cpu, mps)
+  num_processes_preprocessing: 3  # Number of processes for preprocessing
+  num_processes_segmentation_export: 3  # Number of processes for exporting
+
+  # For cascade models
+  # prev_stage_predictions: /path/to/prev/stage/predictions  # Needed for cascade models
+
+  # For parallel execution across multiple jobs
+  # num_parts: 1  # Total number of parallel prediction jobs
+  # part_id: 0  # ID of this specific job (0-based)
+
+  # Boolean flags
+  disable_tta: false  # Set to true to disable test-time augmentation
+  save_probabilities: false  # Set to true to save probability maps
+  continue_prediction: false  # Set to true to continue an interrupted prediction
+  disable_progress_bar: false  # Set to true to disable progress bars
+  verbose: true  # Set to true for detailed output
