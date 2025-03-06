@@ -1,14 +1,14 @@
 # Params for training
 train:
-  dataset_name_or_id: 27  # Dataset name or ID to train with
+  dataset_name_or_id: 27
   configuration: 2d # 2d, 3d_fullres, 3d_lowres, 3d_cascade_fullres
-  fold: [0, 1, 2, 3, 4]  # Fold(s) of the 5-fold cross-validation (integers between 0 and 4)
+  fold: [all]  # Fold(s) of the 5-fold cross-validation (integers between 0 and 4)
   # Optional parameters with default values
-  tr: FlexibleTrainerV1  # Custom trainer (default: nnUNetTrainer)
-  p: nnUNetPlans  # Custom plans identifier (default: nnUNetPlans)
-  pretrained_weights: null  # Path to nnU-Net checkpoint file for pretrained model
-  num_gpus: 1  # Number of GPUs to use for training
-  device: cuda  # Device to run on (cuda, cpu, mps)
+  tr: FlexibleTrainerV1
+  p: nnUNetPlans
+  pretrained_weights: null
+  num_gpus: 1
+  device: cuda
   # Boolean flags
   npz: false  # Save softmax predictions as npz files
   c: false  # Continue training from latest checkpoint
@@ -16,25 +16,26 @@ train:
   val_best: false  # Use checkpoint_best for validation
 
 
+
 # Params for prediction
 predict:
-  # OPTION 1: Predict using direct path to the model folder
-  # OPTION 2: Alternatively, use dataset ID and configuration from 'train'
-#  model_folder: nnUNet_results/Dataset027_ACDC/FlexibleTrainerV1__nnUNetPlans__2d  # Path to the trained model folder
+  # OPTION 1: Alternatively, use dataset ID and configuration from 'train'
+  # OPTION 2: Predict using direct path to the model folder
+  # model_folder: nnUNet_results/Dataset027_ACDC/FlexibleTrainerV1__nnUNetPlans__2d  # Path to the trained model folder
 
   # Required parameters
   input_folder: nnUNet_raw/Dataset027_ACDC/imagesTs  # Input folder with test images
-  output_folder: nnUNet_results/Dataset027_ACDC/prediction  # Output folder to save predictions
+  output_folder: nnUNet_results/Dataset027_ACDC/FlexibleTrainerV1__nnUNetPlans__2d/predictions  # Output folder to save predictions
 
   # Fold selection
-  fold: [1]  # Use the same folds you trained on
+  fold: [0]  # If only one fold specified e.g. [0] or [1], only the model in this fold is evaluated, else if [0, 1, ..], results are ensemble among different folds
 
   # Optional parameters
-  step_size: 0.5  # Step size for sliding window prediction
+  step_size: 0.5
   checkpoint_name: checkpoint_best.pth  # Name of the checkpoint to use
   device: cuda  # Device to run on (cuda, cpu, mps)
-  num_processes_preprocessing: 3  # Number of processes for preprocessing
-  num_processes_segmentation_export: 3  # Number of processes for exporting
+  num_processes_preprocessing: 3
+  num_processes_segmentation_export: 3
 
   # For cascade models
   # prev_stage_predictions: /path/to/prev/stage/predictions  # Needed for cascade models
@@ -44,11 +45,12 @@ predict:
   # part_id: 0  # ID of this specific job (0-based)
 
   # Boolean flags
-  disable_tta: false  # Set to true to disable test-time augmentation
-  save_probabilities: false  # Set to true to save probability maps
-  continue_prediction: false  # Set to true to continue an interrupted prediction
-  disable_progress_bar: false  # Set to true to disable progress bars
-  verbose: true  # Set to true for detailed output
+  disable_tta: false
+  save_probabilities: false
+  continue_prediction: false
+  disable_progress_bar: false
+  verbose: true
+
 
 
 # Params for evaluation
@@ -58,13 +60,33 @@ evaluate:
 
   # Optional parameters
   output_file: null  # If null, will be saved as summary.json in prediction folder
-  num_processes: 8  # Number of processes to use for evaluation
-  chill: false  # Set to true to ignore missing files
+  num_processes: 8
+  chill: false
+
+  # pruned or not_pruned
+  pruned: true
 
 
-  # Params for evaluation
-  evaluate:
-    gt_folder: nnUNet_raw/Dataset027_ACDC/labelsTs  # Ground truth segmentation folder
-    # Optional parameters
-    num_processes: 8  # Number of processes to use for evaluation
-    chill: true  # Set to true to ignore missing files
+# Params for parameter distribution plotting
+plot:
+  base_dir: nnUNet_results  # Base directory containing model results
+  model_version: FlexibleTrainerV1__nnUNetPlans__2d  # Model version to analyze
+  dataset_id: 27  # Dataset ID for analysis
+  checkpoint_name: checkpoint_final.pth  # Name of the checkpoint to use
+  folds: [0, 1, 2, 3, 4]  # Folds to analyze
+  output_dir: parameter_distributions  # Directory for saving output plots
+
+
+# Prune
+prune:
+  model_folder: nnUNet_results_prune_test/Dataset027_ACDC/FlexibleTrainerV1__nnUNetPlans__2d  # Path to the trained model folder, the folder that includes subdirs of fold_X
+  fold: 0 # Please only put single integers here
+  checkpoint_name: checkpoint_final.pth
+  prune_method: null
+
+  # Prediction folder after pruning
+  predict:
+    input_folder: nnUNet_raw/Dataset027_ACDC/imagesTs
+    output_folder: nnUNet_results_prune_test/Dataset027_ACDC/FlexibleTrainerV1__nnUNetPlans__2d/predictions_test2  # Output folder to save predictions
+
+

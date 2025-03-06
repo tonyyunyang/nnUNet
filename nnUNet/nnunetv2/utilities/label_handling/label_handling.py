@@ -253,6 +253,8 @@ def get_labelmanager_class_from_plans(plans: dict) -> Type[LabelManager]:
         labelmanager_class = recursive_find_python_class(join(nnunetv2.__path__[0], "utilities", "label_handling"),
                                                          plans['label_manager'],
                                                          current_module="nnunetv2.utilities.label_handling")
+        print(nnunetv2.__path__[0])
+        print(f'Using label manager: {labelmanager_class}')
         return labelmanager_class
 
 

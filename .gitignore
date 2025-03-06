@@ -3,3 +3,5 @@
 /nnUNet_raw
 /nnUNet_results
 .idea/
+/nnUNet_results_prune_test
+/parameter_distributions

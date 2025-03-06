@@ -3,21 +3,8 @@ import yaml
 import subprocess
 import sys
 import os
-from pathlib import Path
+from helper.read_config import read_config
 
-
-def read_config(yaml_file):
-    """Read configuration from YAML file."""
-    try:
-        with open(yaml_file, 'r') as file:
-            config = yaml.safe_load(file)
-        return config
-    except FileNotFoundError:
-        print(f"Error: Config file '{yaml_file}' not found")
-        sys.exit(1)
-    except yaml.YAMLError as e:
-        print(f"Error parsing YAML file: {e}")
-        sys.exit(1)
 
 
 def build_predict_command(config, train_config):
@@ -46,6 +33,27 @@ def build_predict_command(config, train_config):
         print(f"Using single fold {folds[0]}, saving results to {fold_subdir}")
         # Update the output folder to the fold-specific subdirectory
         output_folder = fold_subdir
+    else:
+        # Create a subfolder for the ensemble of folds
+        ensemble_name = "ensemble_" + "_".join(str(f) for f in folds)
+        ensemble_subdir = os.path.join(output_folder, ensemble_name)
+        os.makedirs(ensemble_subdir, exist_ok=True)
+        print(f"Using ensemble of folds {folds}, saving results to {ensemble_subdir}")
+        # Update the output folder to the ensemble subdirectory
+        output_folder = ensemble_subdir
+
+    # Determine which checkpoint is being used and create appropriate subdir
+    checkpoint_name = config.get('checkpoint_name', 'checkpoint_final.pth')
+    if 'checkpoint_best' in checkpoint_name:
+        model_type_dir = 'best_model'
+    else:  # Default to 'final_model' for 'checkpoint_final' or any other checkpoint
+        model_type_dir = 'final_model'
+
+    # Create and update the output path to include the model type subdirectory
+    model_subdir = os.path.join(output_folder, model_type_dir)
+    os.makedirs(model_subdir, exist_ok=True)
+    print(f"Using checkpoint {checkpoint_name}, saving results to {model_subdir}")
+    output_folder = model_subdir
 
     # Required arguments
     cmd.extend(['-i', str(config['input_folder'])])

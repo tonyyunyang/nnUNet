@@ -2,20 +2,7 @@
 import yaml
 import subprocess
 import sys
-
-
-def read_config(yaml_file):
-    """Read configuration from YAML file."""
-    try:
-        with open(yaml_file, 'r') as file:
-            config = yaml.safe_load(file)
-        return config
-    except FileNotFoundError:
-        print(f"Error: Config file '{yaml_file}' not found")
-        sys.exit(1)
-    except yaml.YAMLError as e:
-        print(f"Error parsing YAML file: {e}")
-        sys.exit(1)
+from helper.read_config import read_config
 
 
 def build_command(config, fold):
@@ -102,8 +89,13 @@ def main():
             if fold_int < 0 or fold_int > 4:
                 print(f"Warning: Fold {fold} is out of the expected range (0-4)")
         except ValueError:
-            print(f"Error: Fold {fold} is not a valid integer")
-            sys.exit(1)
+            try:
+                if fold != 'all':
+                    print(f"Warning: Fold {fold} is neither a valid integer nor 'all'")
+            except ValueError:
+                print(f"Warning: Fold {fold} is neither a valid integer nor 'all'")
+                sys.exit()
+
 
     for fold in folds:
         cmd = build_command(config, fold)
