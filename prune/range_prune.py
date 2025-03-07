@@ -21,36 +21,62 @@ class RangePruningMethod(prune.BasePruningMethod):
         return mask
 
 
-def prune_weights_in_range(module, name, min_val, max_val):
+def prune_values_in_range(module, name, min_val, max_val):
     """Prunes weights in the specified parameter that fall within [min_val, max_val]"""
     RangePruningMethod.apply(module, name, min_val, max_val)
     return module
 
 
-def apply_range_pruning_to_model(model, min_val: float, max_val: float):
-    """Apply range-based pruning to all convolutional layers in a model."""
+def apply_range_pruning_to_model(model, min_val: float, max_val: float, prune_bias: bool = False):
+    """
+    Apply range-based pruning to all layers with weights in a model.
+
+    Args:
+        model: The PyTorch model to prune
+        min_val: Minimum value of the range to prune
+        max_val: Maximum value of the range to prune
+        prune_bias: Whether to also prune the bias parameters (default: False)
+
+    Returns:
+        The pruned model
+    """
     pruned_count = 0
     total_count = 0
 
     for name, module in model.named_modules():
-        if isinstance(module, torch.nn.Conv2d) or isinstance(module, torch.nn.ConvTranspose2d):
-            if hasattr(module, 'weight'):
-                # Count weights before pruning
-                original_weight = module.weight.data.clone()
-                total_layer = original_weight.numel()
-                total_count += total_layer
+        if hasattr(module, 'weight'):
+            # Count weights before pruning
+            original_weight = module.weight.data.clone()
+            total_layer = original_weight.numel()
+            total_count += total_layer
 
-                # Apply pruning
-                prune_weights_in_range(module, 'weight', min_val, max_val)
+            # Apply pruning to weights
+            prune_values_in_range(module, 'weight', min_val, max_val)
 
-                # Count pruned weights
-                if hasattr(module, 'weight_mask'):
-                    pruned_layer = (module.weight_mask == 0).sum().item()
-                    pruned_count += pruned_layer
-                    print(f"{name}: pruned {pruned_layer}/{total_layer} weights ({pruned_layer / total_layer:.2%})")
+            # Count pruned weights
+            if hasattr(module, 'weight_mask'):
+                pruned_layer = (module.weight_mask == 0).sum().item()
+                pruned_count += pruned_layer
+                print(f"{name}.weight: pruned {pruned_layer}/{total_layer} weights ({pruned_layer / total_layer:.2%})")
+
+        # If prune_bias is True and the module has a bias parameter, prune it too
+        if prune_bias and hasattr(module, 'bias') and module.bias is not None:
+            original_bias = module.bias.data.clone()
+            total_bias = original_bias.numel()
+            total_count += total_bias
+
+            # Apply pruning to bias
+            prune_values_in_range(module, 'bias', min_val, max_val)
+
+            # Count pruned bias values
+            if hasattr(module, 'bias_mask'):
+                pruned_bias = (module.bias_mask == 0).sum().item()
+                pruned_count += pruned_bias
+                print(
+                    f"{name}.bias: pruned {pruned_bias}/{total_bias} bias values ({pruned_bias / total_bias:.2%})")
 
     # Print overall statistics
     if total_count > 0:
-        print(f"Total pruned: {pruned_count}/{total_count} weights ({pruned_count / total_count:.2%})")
+        print(f"Total pruned: {pruned_count}/{total_count} parameters ({pruned_count / total_count:.2%})")
 
     return model

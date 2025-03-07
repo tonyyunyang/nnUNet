@@ -6,17 +6,7 @@ from torch.nn.utils import prune
 
 def predict_after_prune(predictor, prune_config):
     predict_config = prune_config['predict']
-    output_folder = Path(predict_config['output_folder'])
-    checkpoint_name = prune_config.get('checkpoint_name', 'checkpoint_final.pth')
-
-    # Determine model subdirectory
-    if 'checkpoint_best' in checkpoint_name:
-        model_type_dir = 'best_model'
-    else:
-        model_type_dir = 'final_model'
-    fold = prune_config['fold']
-    output_folder = os.path.join(output_folder, f"fold_{fold}" ,model_type_dir)
-    os.makedirs(output_folder, exist_ok=True)
+    output_folder = predict_config['output_folder']
 
     # Save the model with pruning parameterization intact
     pruned_state_dict = predictor.network.state_dict()
@@ -26,16 +16,33 @@ def predict_after_prune(predictor, prune_config):
 
     # Remove the pruning parameterization for prediction
     for name, module in predictor.network.named_modules():
-        if isinstance(module, torch.nn.Conv2d) or isinstance(module, torch.nn.ConvTranspose2d):
-            if hasattr(module, 'weight_orig'):
-                print(f"Removing pruning parameterization for {module}")
-                # Remove the reparameterization while keeping pruned weights at zero
-                prune.remove(module, 'weight')
+        # if isinstance(module, torch.nn.Conv2d) or isinstance(module, torch.nn.ConvTranspose2d):
+        if hasattr(module, 'weight_orig'):
+            print(f"Removing pruning parameterization for {module}")
+            # Remove the reparameterization while keeping pruned weights at zero
+            prune.remove(module, 'weight')
+        if hasattr(module, 'bias_orig'):
+            prune.remove(module, 'bias')
+            print(f"Removing pruning parameterization for {module}")
 
     # Save the model with standard parameter structure
     standard_model_path = os.path.join(output_folder, "pruned_model_standard.pth")
     torch.save(predictor.network.state_dict(), standard_model_path)
     print(f"Saved pruned model with standard structure to: {standard_model_path}")
+
+    # Get the pruned network state_dict
+    pruned_state_dict = predictor.network.state_dict()
+
+    # Update the list_of_parameters with the pruned weights
+    fold = int(prune_config['fold'])
+    if fold < len(predictor.list_of_parameters):
+        # Update just the specific fold's parameters
+        predictor.list_of_parameters[fold] = pruned_state_dict
+    else:
+        # If fold index doesn't match or we're using a single fold approach
+        predictor.list_of_parameters = [pruned_state_dict]
+
+    print(f"Updated predictor.list_of_parameters with pruned weights for fold {fold}")
 
     # Perform prediction with the modified model
     predictor.predict_from_files(
